@@ -1,19 +1,18 @@
 
-'use strict';
+"use strict";
 
-import { FileSystemError, Event, FileSystemProvider, Uri, FileStat, FileType, EventEmitter, FileChangeEvent, Disposable } from 'vscode';
-import * as path from 'path';
-import WebDav, { DavOptions } from '../server/WebDav';
-import { DOMParser } from 'xmldom';
+import * as path from "path";
+import { Disposable, Event, EventEmitter, FileChangeEvent, FileStat, FileSystemError, FileSystemProvider, FileType, Uri } from "vscode";
+import { DOMParser } from "xmldom";
+import WebDav, { DavOptions } from "../server/WebDav";
 
-
-const rootFolders = ['Impex', 'Temp', 'Realmdata', 'Static'];
+const rootFolders = ["Impex", "Temp", "Realmdata", "Static"];
 
 const domParser = new DOMParser();
 
 function getNodeText(node): string | undefined {
 	if (node && node.length && node.item(0).childNodes.length) {
-		const value = node.item(0).childNodes['0'].nodeValue;
+		const value = node.item(0).childNodes["0"].nodeValue;
 		if (value) {
 			return value;
 		} else {
@@ -28,9 +27,9 @@ function ab2str(buf: Uint8Array) {
 	return String.fromCharCode.apply(null, new Uint16Array(buf));
 }
 function str2ab(str: string) {
-	var buf = new ArrayBuffer(str.length); // 2 bytes for each char
-	var bufView = new Uint8Array(buf);
-	for (var i = 0, strLen = str.length; i < strLen; i++) {
+	const buf = new ArrayBuffer(str.length); // 2 bytes for each char
+	const bufView = new Uint8Array(buf);
+	for (let i = 0, strLen = str.length; i < strLen; i++) {
 		bufView[i] = str.charCodeAt(i);
 	}
 	return bufView;
@@ -39,37 +38,37 @@ function str2ab(str: string) {
 function parseStatResponse(data: string): FileStat | undefined {
 	const xmlResponse = domParser.parseFromString(data);
 
-	const responses = xmlResponse.getElementsByTagName('response');
+	const responses = xmlResponse.getElementsByTagName("response");
 	for (let i = 0, length = responses.length; i < length; i++) {
 		const response = responses.item(i);
 
-		//const href = getNodeText(response.getElementsByTagName('href'));
-		const lastmodified = Date.parse(getNodeText(response.getElementsByTagName('getlastmodified')) || '');
-		const creationdate = Date.parse(getNodeText(response.getElementsByTagName('creationdate')) || '');
+		// const href = getNodeText(response.getElementsByTagName('href'));
+		const lastmodified = Date.parse(getNodeText(response.getElementsByTagName("getlastmodified")) || "");
+		const creationdate = Date.parse(getNodeText(response.getElementsByTagName("creationdate")) || "");
 
-		const collection = response.getElementsByTagName('collection');
+		const collection = response.getElementsByTagName("collection");
 
 		return {
 			type: collection.length ? FileType.Directory : FileType.File,
 			mtime: lastmodified,
 			ctime: creationdate,
-			size: 0
+			size: 0,
 		};
 	}
 }
 
 function parseDirResponse(data) {
 	const xmlResponse = domParser.parseFromString(data);
-	const dirList: [string, FileType][] = [];
+	const dirList: Array<[string, FileType]> = [];
 
-	const responses = xmlResponse.getElementsByTagName('response');
+	const responses = xmlResponse.getElementsByTagName("response");
 	for (let i = 1, length = responses.length; i < length; i++) {
 		const response = responses.item(i);
 
-		const name = getNodeText(response.getElementsByTagName('displayname'));
+		const name = getNodeText(response.getElementsByTagName("displayname"));
 
 		if (name) {
-			const collection = response.getElementsByTagName('collection');
+			const collection = response.getElementsByTagName("collection");
 
 			dirList.push([name, collection.length ? FileType.Directory : FileType.File]);
 		}
@@ -78,33 +77,40 @@ function parseDirResponse(data) {
 }
 
 export class SandboxFS implements FileSystemProvider {
+	public static readonly SCHEME = "ccfs";
+	// private _bufferedEvents: FileChangeEvent[] = [];
+	// private _fireSoonHandle: NodeJS.Timer;
+
+	public readonly onDidChangeFile: Event<FileChangeEvent[]> = this._emitter.event;
 	private webDav: WebDav;
+	// --- manage file events
+
+	private _emitter = new EventEmitter<FileChangeEvent[]>();
 	constructor(webdavOptions: DavOptions) {
 		this.webDav = new WebDav(webdavOptions);
-		this.webDav.config.version = '';
+		this.webDav.config.version = "";
 	}
-	static readonly SCHEME = 'ccfs';
 
-	stat(uri: Uri): FileStat | Thenable<FileStat> {
-		if (uri.path === '/') {
+	public stat(uri: Uri): FileStat | Thenable<FileStat> {
+		if (uri.path === "/") {
 			return {
 				type: FileType.Directory,
 				ctime: 0,
 				mtime: 0,
-				size: 0
-			}
+				size: 0,
+			};
 		} else {
-			const rootFolder = uri.path.split('/')[1];
+			const rootFolder = uri.path.split("/")[1];
 
 			if (rootFolder && rootFolders.includes(rootFolder)) {
 				this.webDav.folder = rootFolder;
-				return this.webDav.dirList(uri.path, '/' + rootFolder).toPromise().then(result => {
+				return this.webDav.dirList(uri.path, "/" + rootFolder).toPromise().then((result) => {
 					const resp = parseStatResponse(result);
 
 					if (resp) {
 						return Promise.resolve(resp);
 					} else {
-						return Promise.reject('15: Unable parse response');
+						return Promise.reject("15: Unable parse response");
 					}
 				});
 			} else {
@@ -113,47 +119,46 @@ export class SandboxFS implements FileSystemProvider {
 		}
 	}
 
-	readDirectory(uri: Uri): [string, FileType][] | Thenable<[string, FileType][]> {
-		//const entry = this._lookupAsDirectory(uri, false);
-		let result: [string, FileType][] = [];
+	public readDirectory(uri: Uri): Array<[string, FileType]> | Thenable<Array<[string, FileType]>> {
+		// const entry = this._lookupAsDirectory(uri, false);
+		const result: Array<[string, FileType]> = [];
 
-		if (uri.path === '/') {
-			rootFolders.forEach(folderName => {
+		if (uri.path === "/") {
+			rootFolders.forEach((folderName) => {
 				result.push([folderName, FileType.Directory]);
 			});
 		} else {
-			const rootFolder = uri.path.split('/')[1];
+			const rootFolder = uri.path.split("/")[1];
 
 			if (rootFolder && rootFolders.includes(rootFolder)) {
 				this.webDav.folder = rootFolder;
 
-				return this.webDav.dirList(uri.path, '/' + rootFolder).toPromise().then(result => {
+				return this.webDav.dirList(uri.path, "/" + rootFolder).toPromise().then((result) => {
 					const resp = parseDirResponse(result);
 
 					if (resp) {
 						return Promise.resolve(resp);
 					} else {
-						return Promise.reject('15: Unable parse response');
+						return Promise.reject("15: Unable parse response");
 					}
 				});
 			} else {
 				throw FileSystemError.FileNotFound(uri);
 			}
 		}
-
 
 		return result;
 	}
 
 	// --- manage file contents
 
-	readFile(uri: Uri): Thenable<Uint8Array> {
-		const rootFolder = uri.path.split('/')[1];
+	public readFile(uri: Uri): Thenable<Uint8Array> {
+		const rootFolder = uri.path.split("/")[1];
 
 		if (rootFolder && rootFolders.includes(rootFolder)) {
 			this.webDav.folder = rootFolder;
 
-			return this.webDav.get(uri.path, '/' + rootFolder).toPromise().then(result => {
+			return this.webDav.get(uri.path, "/" + rootFolder).toPromise().then((result) => {
 
 				return Promise.resolve(str2ab(result));
 			});
@@ -162,14 +167,14 @@ export class SandboxFS implements FileSystemProvider {
 		}
 	}
 
-	writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): Thenable<void> {
-		const rootFolder = uri.path.split('/')[1];
+	public writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): Thenable<void> {
+		const rootFolder = uri.path.split("/")[1];
 
 		if (rootFolder && rootFolders.includes(rootFolder)) {
 			this.webDav.folder = rootFolder;
 
 			return this.webDav.postBody(
-				path.relative('/' + rootFolder, uri.path),
+				path.relative("/" + rootFolder, uri.path),
 				ab2str(content))
 				.toPromise().then(() => Promise.resolve());
 		} else {
@@ -179,8 +184,8 @@ export class SandboxFS implements FileSystemProvider {
 
 	// --- manage files/folders
 
-	rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): void {
-		throw Error('Not implemented');
+	public rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): void {
+		throw Error("Not implemented");
 		// if (!options.overwrite && this._lookup(newUri, true)) {
 		//     throw FileSystemError.FileExists(newUri);
 		// }
@@ -201,42 +206,35 @@ export class SandboxFS implements FileSystemProvider {
 		// );
 	}
 
-	delete(uri: Uri): Thenable<void> {
-		const rootFolder = uri.path.split('/')[1];
+	public delete(uri: Uri): Thenable<void> {
+		const rootFolder = uri.path.split("/")[1];
 
 		if (rootFolder && rootFolders.includes(rootFolder)) {
 			this.webDav.folder = rootFolder;
 
 			return this.webDav.delete(uri.path,
-				'/' + rootFolder)
+				"/" + rootFolder)
 				.toPromise().then(() => Promise.resolve());
 		} else {
 			throw FileSystemError.FileNotFound(uri);
 		}
 	}
 
-	createDirectory(uri: Uri): Thenable<void> {
-		const rootFolder = uri.path.split('/')[1];
+	public createDirectory(uri: Uri): Thenable<void> {
+		const rootFolder = uri.path.split("/")[1];
 
 		if (rootFolder && rootFolders.includes(rootFolder)) {
 			this.webDav.folder = rootFolder;
 
 			return this.webDav.mkdir(uri.path,
-				'/' + rootFolder)
+				"/" + rootFolder)
 				.toPromise().then(() => Promise.resolve());
 		} else {
 			throw FileSystemError.FileNotFound(uri);
 		}
 	}
-	// --- manage file events
 
-	private _emitter = new EventEmitter<FileChangeEvent[]>();
-	// private _bufferedEvents: FileChangeEvent[] = [];
-	// private _fireSoonHandle: NodeJS.Timer;
-
-	readonly onDidChangeFile: Event<FileChangeEvent[]> = this._emitter.event;
-
-	watch(resource: Uri, opts): Disposable {
+	public watch(resource: Uri, opts): Disposable {
 		// ignore, fires for all changes...
 		return new Disposable(() => { });
 	}

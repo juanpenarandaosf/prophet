@@ -1,21 +1,20 @@
 
-'use strict';
+"use strict";
 
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
 
 // import { join, isAbsolute, dirname } from 'path';
 // import * as fs from 'fs';
 
-
 const initialConfigurations = {
-	version: '0.1.0',
+	version: "0.1.0",
 	configurations: [
 		{
-			'type': 'prophet',
-			'request': 'launch',
-			'name': 'Attach to Sandbox'
-		}
-	]
+			type: "prophet",
+			request: "launch",
+			name: "Attach to Sandbox",
+		},
+	],
 };
 
 export class ProphetConfigurationProvider implements vscode.DebugConfigurationProvider {
@@ -23,7 +22,7 @@ export class ProphetConfigurationProvider implements vscode.DebugConfigurationPr
 	/**
 	 * Returns an initial debug configuration based on contextual information, e.g. package.json or folder.
 	 */
-	provideDebugConfigurations(folder: vscode.WorkspaceFolder | undefined, token?: vscode.CancellationToken): vscode.ProviderResult<vscode.DebugConfiguration[]> {
+	public provideDebugConfigurations(folder: vscode.WorkspaceFolder | undefined, token?: vscode.CancellationToken): vscode.ProviderResult<vscode.DebugConfiguration[]> {
 		return  initialConfigurations.configurations;
 	}
 
